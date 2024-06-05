@@ -15,17 +15,6 @@ const EMPTY_DISCOUNT = {
 };
 
 /**
- * Function to check if a line is a free gift
- * @param {Object} line - The line item to check
- * @returns {boolean} - True if the line is a free gift, false otherwise
- */
-function isFreeGift(line) {
-  const freeGiftMetafields = ['tier1', 'tier2', 'tier3', 'tier4', 'tier5'];
-  const metafieldValue = line.merchandise.product?.metafield?.value;
-  return freeGiftMetafields.includes(metafieldValue);
-}
-
-/**
  * @param {RunInput} input
  * @returns {FunctionRunResult}
  */
@@ -33,17 +22,35 @@ export function run(input) {
   console.log("Input Cart Cost:", JSON.stringify(input.cart.cost, null, 2));
   console.log("Input Cart Lines:", JSON.stringify(input.cart.lines, null, 2));
 
-  // Calculate the cart total excluding free gifts
-  const cartTotal = input.cart.lines.reduce((total, line) => {
-    if (!isFreeGift(line)) {
-      return total + parseFloat(line.cost.totalAmount.amount);
+  const tierLevels = [
+    { amount: 0, key: "tier1" },
+    { amount: 250, key: "tier2" },
+    { amount: 750, key: "tier3" },
+    { amount: 2500, key: "tier4" },
+    { amount: 4000, key: "tier5" },
+  ];
+
+  let cartTotal = parseFloat(input.cart.cost.totalAmount.amount);
+  console.log("Initial Cart Total:", cartTotal);
+
+  const eligibleTiers = tierLevels.filter(tier => cartTotal >= tier.amount);
+  const excludedProducts = new Set();
+  const excludedLines = new Set();
+
+  // Exclude one product per eligible tier
+  eligibleTiers.forEach(tier => {
+    for (const line of input.cart.lines) {
+      if (line.merchandise.product?.metafield?.value === tier.key && !excludedProducts.has(line.merchandise.id) && !excludedLines.has(line.id)) {
+        cartTotal -= parseFloat(line.cost.totalAmount.amount) / line.quantity;
+        excludedProducts.add(line.merchandise.id);
+        excludedLines.add(line.id);
+        break; // Exclude only one product per tier
+      }
     }
-    return total;
-  }, 0);
+  });
 
   console.log("Adjusted Cart Total (excluding free gifts):", cartTotal);
 
-  // Determine the discount percentage based on cart total
   let discountPercentage = 0;
 
   if (cartTotal >= 1000) {
@@ -63,7 +70,7 @@ export function run(input) {
 
   const discount = {
     message: `Get ${discountPercentage}% off your order!`,
-    targets: input.cart.lines.filter(line => !isFreeGift(line)).map(line => ({
+    targets: input.cart.lines.map(line => ({
       productVariant: {
         id: line.merchandise.id,
         quantity: line.quantity,
