@@ -7,6 +7,7 @@ query RunInput {
       }
     }
     lines {
+      id
       quantity
       cost {
         totalAmount {
@@ -17,6 +18,11 @@ query RunInput {
       merchandise {
         ... on ProductVariant {
           id
+          product {
+            metafield(namespace: "custom", key: "tier") {
+              value
+            }
+          }
         }
       }
     }

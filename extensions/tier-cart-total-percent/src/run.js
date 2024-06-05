@@ -15,6 +15,17 @@ const EMPTY_DISCOUNT = {
 };
 
 /**
+ * Function to check if a line is a free gift
+ * @param {Object} line - The line item to check
+ * @returns {boolean} - True if the line is a free gift, false otherwise
+ */
+function isFreeGift(line) {
+  const freeGiftMetafields = ['tier1', 'tier2', 'tier3', 'tier4', 'tier5'];
+  const metafieldValue = line.merchandise.product?.metafield?.value;
+  return freeGiftMetafields.includes(metafieldValue);
+}
+
+/**
  * @param {RunInput} input
  * @returns {FunctionRunResult}
  */
@@ -22,10 +33,15 @@ export function run(input) {
   console.log("Input Cart Cost:", JSON.stringify(input.cart.cost, null, 2));
   console.log("Input Cart Lines:", JSON.stringify(input.cart.lines, null, 2));
 
-  // Calculate the cart total from input
-  const cartTotal = parseFloat(input.cart.cost.totalAmount.amount);
+  // Calculate the cart total excluding free gifts
+  const cartTotal = input.cart.lines.reduce((total, line) => {
+    if (!isFreeGift(line)) {
+      return total + parseFloat(line.cost.totalAmount.amount);
+    }
+    return total;
+  }, 0);
 
-  console.log("Cart Total:", cartTotal);
+  console.log("Adjusted Cart Total (excluding free gifts):", cartTotal);
 
   // Determine the discount percentage based on cart total
   let discountPercentage = 0;
@@ -47,7 +63,7 @@ export function run(input) {
 
   const discount = {
     message: `Get ${discountPercentage}% off your order!`,
-    targets: input.cart.lines.map(line => ({
+    targets: input.cart.lines.filter(line => !isFreeGift(line)).map(line => ({
       productVariant: {
         id: line.merchandise.id,
         quantity: line.quantity,
